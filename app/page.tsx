@@ -1,113 +1,226 @@
-import Image from 'next/image'
+"use client"
+import FullCalendar from "@fullcalendar/react"
+import dayGridPlugin from "@fullcalendar/daygrid"
+import interactionPlugin from "@fullcalendar/interaction"
+import { useState } from "react"
+import TimePicker from "./_components/TimePicker"
+const events = [{ title: "Meeting", start: new Date() }]
+
+function addTwoHours(timeString: string) {
+  const [inputHour, minute, period] = timeString.split(/:| /)
+
+  let hour = parseInt(inputHour, 10)
+  if (period === "PM" && hour !== 12) {
+    hour += 12
+  } else if (period === "AM" && hour === 12) {
+    hour = 0
+  }
+
+  hour = (hour + 2) % 24
+
+  const newHour = hour % 12 || 12
+  const newPeriod = hour < 12 ? "AM" : "PM"
+
+  const resultTime = `${newHour
+    .toString()
+    .padStart(2, "0")}:${minute} ${newPeriod}`
+  return resultTime
+}
+
+function generateTimeList12Hour() {
+  const times = []
+  const totalMinutesInDay = 24 * 60 // Total minutes in a day
+
+  for (let minutes = 0; minutes < totalMinutesInDay; minutes += 30) {
+    const hour = Math.floor(minutes / 60)
+    const minute = minutes % 60
+
+    let period = "AM"
+    let formattedHour = hour
+
+    if (hour >= 12) {
+      period = "PM"
+      formattedHour = hour === 12 ? 12 : hour - 12
+    }
+
+    if (formattedHour === 0) {
+      formattedHour = 12
+    }
+
+    const formattedMinute = minute === 0 ? "00" : `${minute}`
+
+    const formattedTime = `${formattedHour}:${formattedMinute} ${period}`
+    times.push(formattedTime)
+  }
+
+  return times
+}
+
+function isLetter(c: string) {
+  return c.toLowerCase() != c.toUpperCase()
+}
+
+export interface TimeSlot {
+  id: number
+  start: string
+  end: string
+  isError: boolean
+  errorMessage: string
+}
 
 export default function Home() {
+  const [date, setDate] = useState("")
+  const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([])
+
+  const handleAddTime = () => {
+    if (timeSlots.length === 0) {
+      const data: TimeSlot = {
+        id: Math.random(),
+        start: "8:00 AM",
+        end: "10:00 AM",
+        isError: false,
+        errorMessage: "",
+      }
+
+      setTimeSlots((prev) => [...prev, data])
+      return
+    }
+
+    // We want to get the last time slot and add 2 hours to it and set it as the start time
+    const lastTimeSlot = timeSlots[timeSlots.length - 1]
+    const newStartTime = lastTimeSlot.end
+    const newEndtime = addTwoHours(newStartTime)
+
+    const data: TimeSlot = {
+      id: Math.random(),
+      start: newStartTime,
+      end: newEndtime,
+      isError: false,
+      errorMessage: "",
+    }
+
+    setTimeSlots((prev) => [...prev, data])
+  }
+
+  const handleOnTimeChange = (id: number, value: string) => {
+    const newTimeSlots = timeSlots.map((timeSlot) => {
+      if (timeSlot.id === id) {
+        return { ...timeSlot, start: value }
+      }
+
+      return timeSlot
+    })
+
+    setTimeSlots(newTimeSlots)
+  }
+
+  const handleOnTimeBlur = (id: number, value: string) => {
+    const newTimeSlots = timeSlots.map((timeSlot) => {
+      if (timeSlot.id === id) {
+        console.log(isLetter(value))
+
+        if (isLetter(value)) {
+          return {
+            ...timeSlot,
+            start: "",
+            isError: true,
+            errorMessage: "Please enter a valid time",
+          }
+        }
+
+        return { ...timeSlot, start: value, isError: false, errorMessage: "" }
+      }
+
+      return timeSlot
+    })
+
+    setTimeSlots(newTimeSlots)
+  }
+
+  const handleOnTimeClick = (id: number, value: string) => {
+    console.log("clicjed")
+    const newTimeSlots = timeSlots.map((timeSlot) => {
+      if (timeSlot.id === id) {
+        return { ...timeSlot, start: value }
+      }
+
+      return timeSlot
+    })
+
+    setTimeSlots(newTimeSlots)
+  }
+
   return (
-    <main className="flex min-h-screen flex-col items-center justify-between p-24">
-      <div className="z-10 max-w-5xl w-full items-center justify-between font-mono text-sm lg:flex">
-        <p className="fixed left-0 top-0 flex w-full justify-center border-b border-gray-300 bg-gradient-to-b from-zinc-200 pb-6 pt-8 backdrop-blur-2xl dark:border-neutral-800 dark:bg-zinc-800/30 dark:from-inherit lg:static lg:w-auto  lg:rounded-xl lg:border lg:bg-gray-200 lg:p-4 lg:dark:bg-zinc-800/30">
-          Get started by editing&nbsp;
-          <code className="font-mono font-bold">app/page.tsx</code>
-        </p>
-        <div className="fixed bottom-0 left-0 flex h-48 w-full items-end justify-center bg-gradient-to-t from-white via-white dark:from-black dark:via-black lg:static lg:h-auto lg:w-auto lg:bg-none">
-          <a
-            className="pointer-events-none flex place-items-center gap-2 p-8 lg:pointer-events-auto lg:p-0"
-            href="https://vercel.com?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+    <div>
+      <h1>Demo App</h1>
+      <div className={`grid grid-cols-3 max-w-7xl mx-auto gap-4 p-4 `}>
+        <div className={`col-span-3 transition ${date && "!col-span-2"}`}>
+          <FullCalendar
+            plugins={[dayGridPlugin, interactionPlugin]}
+            initialView="dayGridMonth"
+            weekends={false}
+            events={events}
+            eventContent={renderEventContent}
+            viewClassNames={"h-auto"}
+            selectable
+            dateClick={(info) => {
+              setDate(info.dateStr)
+            }}
+            aspectRatio={1.3}
+            height={"auto"}
+          />
+        </div>
+        <div
+          className={`hidden col-span-1 border rounded-lg p-4 transition ${
+            date && "!block"
+          }`}
+        >
+          <h2>Choose Time for this date</h2>
+          <div className="border-b-2 border-black/20 pt-2"></div>
+          <button
+            className="bg-blue-300  rounded-md p-2"
+            onClick={handleAddTime}
           >
-            By{' '}
-            <Image
-              src="/vercel.svg"
-              alt="Vercel Logo"
-              className="dark:invert"
-              width={100}
-              height={24}
-              priority
-            />
-          </a>
+            Add time
+          </button>
+          <div className="mt-4 space-y-4">
+            {timeSlots.map((timeSlot, index) => (
+              <div className="flex items-center gap-1" key={index}>
+                <TimePicker
+                  id={timeSlot.id}
+                  value={timeSlot.start}
+                  isError={timeSlot.isError}
+                  errorMessage={timeSlot.errorMessage}
+                  handleOnTimeChange={handleOnTimeChange}
+                  handleOnTimeClick={handleOnTimeClick}
+                  handleOnTimeBlur={handleOnTimeBlur}
+                />
+                <span>-</span>
+                <TimePicker
+                  id={timeSlot.id}
+                  value={timeSlot.end}
+                  isError={timeSlot.isError}
+                  errorMessage={timeSlot.errorMessage}
+                  handleOnTimeChange={handleOnTimeChange}
+                  handleOnTimeBlur={handleOnTimeBlur}
+                  handleOnTimeClick={handleOnTimeClick}
+                  readOnly
+                />
+              </div>
+            ))}
+          </div>
         </div>
       </div>
+    </div>
+  )
+}
 
-      <div className="relative flex place-items-center before:absolute before:h-[300px] before:w-[480px] before:-translate-x-1/2 before:rounded-full before:bg-gradient-radial before:from-white before:to-transparent before:blur-2xl before:content-[''] after:absolute after:-z-20 after:h-[180px] after:w-[240px] after:translate-x-1/3 after:bg-gradient-conic after:from-sky-200 after:via-blue-200 after:blur-2xl after:content-[''] before:dark:bg-gradient-to-br before:dark:from-transparent before:dark:to-blue-700 before:dark:opacity-10 after:dark:from-sky-900 after:dark:via-[#0141ff] after:dark:opacity-40 before:lg:h-[360px] z-[-1]">
-        <Image
-          className="relative dark:drop-shadow-[0_0_0.3rem_#ffffff70] dark:invert"
-          src="/next.svg"
-          alt="Next.js Logo"
-          width={180}
-          height={37}
-          priority
-        />
-      </div>
-
-      <div className="mb-32 grid text-center lg:max-w-5xl lg:w-full lg:mb-0 lg:grid-cols-4 lg:text-left">
-        <a
-          href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Docs{' '}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Find in-depth information about Next.js features and API.
-          </p>
-        </a>
-
-        <a
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Learn{' '}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Learn about Next.js in an interactive course with&nbsp;quizzes!
-          </p>
-        </a>
-
-        <a
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Templates{' '}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Explore the Next.js 13 playground.
-          </p>
-        </a>
-
-        <a
-          href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Deploy{' '}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Instantly deploy your Next.js site to a shareable URL with Vercel.
-          </p>
-        </a>
-      </div>
-    </main>
+// a custom render function
+function renderEventContent(eventInfo: any) {
+  return (
+    <>
+      <b>{eventInfo.timeText}</b>
+      <i>{eventInfo.event.title}</i>
+    </>
   )
 }
